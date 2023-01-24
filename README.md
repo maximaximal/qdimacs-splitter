@@ -11,3 +11,10 @@ This produces $2^d$ files, with $d$ being the splitting depth. It
 splits along the quantifier prefix. This helps developing new
 splitting techniques and to compute the theoretical maximum speedup
 that could be gathered by splitting.
+
+## Building and Using
+
+``` bash
+cargo build -r
+./target/release/qdimacs_splitter
+```
