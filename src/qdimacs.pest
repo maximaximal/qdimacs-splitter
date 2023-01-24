@@ -1,0 +1,14 @@
+file = { SOI ~
+     comment_line* ~
+     problem_line ~
+     quant_set* ~
+     clause+ ~ NEWLINE? ~
+     EOI }
+comment_line = _{ "c " ~ ANY ~ NEWLINE }
+problem_line = { "p cnf " ~ (pnum) ~ " " ~ (pnum) ~ NEWLINE }
+
+quant_set = { quantifier ~ " " ~ (pnum ~ " ") + ~ "0" ~ NEWLINE }
+quantifier = @{ "e" | "a" }
+clause = { (pnum ~ " ")* ~ "0" ~ NEWLINE }
+
+pnum = { "-"? ~ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
