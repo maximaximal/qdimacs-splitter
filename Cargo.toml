@@ -10,6 +10,7 @@ clap = { version = "4.1.1", features = ["derive"] }
 pest = "2.0"
 pest_derive = "2.0"
 file-matcher = "0.7.0"
+bitvec = "1.0.1"
 
 [profile.release]
 lto = true

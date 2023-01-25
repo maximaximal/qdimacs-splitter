@@ -10,7 +10,7 @@ use std::io::prelude::*;
 #[grammar = "qdimacs.pest"]
 struct QDIMACSParser;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Formula {
     pub prefix: Vec<i32>,
     pub matrix: Vec<Vec<i32>>,

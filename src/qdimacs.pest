@@ -4,7 +4,7 @@ file = { SOI ~
      quant_set* ~
      clause+ ~ NEWLINE? ~
      EOI }
-comment_line = _{ "c " ~ ANY ~ NEWLINE }
+comment_line = _{ "c " ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
 problem_line = { "p cnf " ~ (pnum) ~ " " ~ (pnum) ~ NEWLINE }
 
 quant_set = { quantifier ~ " " ~ (pnum ~ " ") + ~ "0" ~ NEWLINE }
