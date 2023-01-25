@@ -43,6 +43,7 @@ fn assume_prefix_vars(f: &Formula, filename: &str, v: u32, depth: u32) {
             name_prefix[i] = 't' as u8;
         }
         assumed_f.matrix.push(vec![lit]);
+        assumed_f.nr_of_clauses += 1;
     }
     let out_name = String::from_utf8(name_prefix).unwrap() + ":" + filename;
 
