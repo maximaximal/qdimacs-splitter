@@ -7,10 +7,10 @@ file = { SOI ~
 
 int_split_line = { "cs int " ~ ("[ " ~ (pnum ~ " ")+ ~ "] ")? ~
                cmp ~ " " ~ (pnum
-              | ("{ " ~ (("0" | "1")+ ~ " ")+ ~ "}")) ~
-              (" ; " ~ ("[ " ~ (pnum ~ " ")+ ~ "] ")? ~
+              | ("{ " ~ (onezero ~ " ")+ ~ "}")) ~
+              (" ; " ~
                cmp ~ " " ~ (pnum
-              | ("{ " ~ (("0" | "1")+ ~ " ")+ ~ "}")))* ~
+              | ("{ " ~ (onezero ~ " ")+ ~ "}")))* ~
                NEWLINE }
 
 comment_line = _{ "c " ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
@@ -21,4 +21,5 @@ quantifier = @{ "e" | "a" }
 clause = { (pnum ~ " ")* ~ "0" ~ NEWLINE }
 
 pnum = { "-"? ~ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
+onezero = { ("0" | "1")+ }
 cmp = { "<" | ">" | "=" }
