@@ -8,9 +8,9 @@ file = { SOI ~
 int_split_line = { "cs int " ~ ("[ " ~ (pnum ~ " ")+ ~ "] ")? ~
                cmp ~ " " ~ (pnum
               | ("{ " ~ (("0" | "1")+ ~ " ")+ ~ "}")) ~
-              ((" ; [ " ~ (pnum ~ " ")+ ~ "] ")? ~
-               cmp ~ " " ~ pnum
-              | ("{ " ~ (("0" | "1")+ ~ " ")+ ~ "}"))* ~
+              (" ; " ~ ("[ " ~ (pnum ~ " ")+ ~ "] ")? ~
+               cmp ~ " " ~ (pnum
+              | ("{ " ~ (("0" | "1")+ ~ " ")+ ~ "}")))* ~
                NEWLINE }
 
 comment_line = _{ "c " ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
