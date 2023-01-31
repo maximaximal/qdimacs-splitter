@@ -38,6 +38,16 @@ pub struct Formula {
     pub nr_of_clauses: i32,
 }
 
+fn sign(n: i32) -> i32 {
+    if n > 0 {
+        1
+    } else if n < 0 {
+        -1
+    } else {
+        panic!("Don't call sign with 0!");
+    }
+}
+
 pub fn write_qdimacs(tgt: &str, formula: &Formula) -> std::io::Result<()> {
     let mut file = File::create(tgt)?;
     write!(
@@ -126,13 +136,13 @@ pub fn parse_qdimacs(qdimacs: &str) -> Result<Formula, String> {
                     vars_or_cmp_rule = vars_or_cmp.as_rule();
                 }
 
-                while vars_or_cmp.as_rule() == Rule::cmp {
+                loop {
                     let mut target: Vec<Vec<i32>> = vec![];
                     let kind: IntegerSplitKind = match vars_or_cmp.as_str() {
                         "<" => IntegerSplitKind::LessThan,
                         ">" => IntegerSplitKind::GreaterThan,
                         "=" => IntegerSplitKind::Equals,
-                        _ => panic!("Unknown pattern!"),
+                        p => panic!("Unknown pattern: {}", p),
                     };
 
                     if matches!(kind, IntegerSplitKind::Equals) {
@@ -223,10 +233,28 @@ pub fn parse_qdimacs(qdimacs: &str) -> Result<Formula, String> {
                 }
                 IntegerSplitKind::Equals => s.constraints[0].target[0].len() as i32,
             };
-            s.vars =
-                prefix[(prefix_start as usize)..((prefix_start + nr_of_bits) as usize)].to_vec();
+            s.vars = prefix[(prefix_start as usize)..((prefix_start + nr_of_bits) as usize)]
+                .iter()
+                .map(|x| x.abs())
+                .collect();
         } else {
             prefix_start += s.vars.len() as i32;
+        }
+    }
+
+    // Consistency Check with Quantifier Blocks
+    for s in splits.iter() {
+        println!("{:?}", s);
+        let mut last_q = 0;
+        println!("Vars: {:?}", s.vars);
+        for v in s.vars.iter() {
+            let q_pos = prefix.iter().position(|q| q.abs() == *v).unwrap();
+            let q = prefix[q_pos];
+            println!("V: {} Q: {}", v, q);
+            if last_q != 0 && sign(last_q) != sign(q) {
+                panic!("One constraint over multiple different quantifier types! Covered variables {} and {}", last_q, q);
+            }
+            last_q = q;
         }
     }
 
@@ -242,9 +270,17 @@ pub fn parse_qdimacs(qdimacs: &str) -> Result<Formula, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_nr_to_bits() {
         assert_eq!(var_constraint_to_nr_of_bits(5), 3);
+        assert_eq!(var_constraint_to_nr_of_bits(3), 2);
+        assert_eq!(var_constraint_to_nr_of_bits(2), 1);
+    }
+
+    #[test]
+    fn test_sign() {
+        assert_eq!(sign(2), 1);
+        assert_eq!(sign(-2), -1);
     }
 }
