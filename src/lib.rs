@@ -11,6 +11,20 @@ use std::io::prelude::*;
 struct QDIMACSParser;
 
 #[derive(Debug, Clone)]
+pub enum IntegerSplitKind {
+    LessThan,
+    GreaterThan,
+    Equals,
+}
+
+#[derive(Debug, Clone)]
+pub struct IntegerSplit {
+    kind: IntegerSplitKind,
+    vars: Vec<i32>,
+    target: Vec<Vec<i32>>,
+}
+
+#[derive(Debug, Clone)]
 pub struct Formula {
     pub prefix: Vec<i32>,
     pub matrix: Vec<Vec<i32>>,
@@ -76,6 +90,7 @@ pub fn parse_qdimacs(qdimacs: &str) -> Result<Formula, String> {
     let mut nr_of_clauses: i32 = 0;
     let mut prefix: Vec<i32> = vec![];
     let mut matrix: Vec<Vec<i32>> = vec![];
+    let mut integer_splits: Vec<IntegerSplit> = vec![];
 
     for line in file.into_inner() {
         match line.as_rule() {
@@ -84,6 +99,60 @@ pub fn parse_qdimacs(qdimacs: &str) -> Result<Formula, String> {
                 let nr_of_variables_inner = inner_rules.next().unwrap();
                 nr_of_variables = nr_of_variables_inner.as_str().parse::<i32>().unwrap();
                 nr_of_clauses = inner_rules.next().unwrap().as_str().parse::<i32>().unwrap();
+            }
+            Rule::int_split_line => {
+                let mut inner_rules = line.into_inner();
+                let mut vars_or_cmp = inner_rules.next().unwrap();
+                let mut vars_or_cmp_rule = vars_or_cmp.as_rule();
+                let mut vars: Vec<i32> = vec![];
+                let mut target: Vec<Vec<i32>> = vec![];
+                while vars_or_cmp_rule == Rule::pnum {
+                    let v = vars_or_cmp.as_str().parse::<i32>().unwrap();
+                    vars.push(v);
+                    println!("V: {}", v);
+                    vars_or_cmp = inner_rules.next().unwrap();
+                    vars_or_cmp_rule = vars_or_cmp.as_rule();
+                }
+
+                let kind: IntegerSplitKind = match vars_or_cmp.as_str() {
+                    "<" => IntegerSplitKind::LessThan,
+                    ">" => IntegerSplitKind::GreaterThan,
+                    "=" => IntegerSplitKind::Equals,
+                    _ => panic!("Unknown pattern!"),
+                };
+
+                if matches!(kind, IntegerSplitKind::Equals) {
+                    let mut num = inner_rules.next();
+                    while num.is_some() {
+                        target.push(
+                            num.unwrap()
+                                .as_str()
+                                .chars()
+                                .map(|x| {
+                                    if x == '1' {
+                                        1
+                                    } else if x == '0' {
+                                        0
+                                    } else {
+                                        panic!(
+                                            "Integer Split with = must only have 1 and 0 as match!"
+                                        );
+                                    }
+                                })
+                                .collect(),
+                        );
+                        num = inner_rules.next();
+                    }
+                } else {
+                    target.push(vec![inner_rules
+                        .next()
+                        .unwrap()
+                        .as_str()
+                        .parse::<i32>()
+                        .unwrap()]);
+                }
+
+                integer_splits.push(IntegerSplit { kind, vars, target });
             }
             Rule::quant_set => {
                 let mut inner_rules = line.into_inner();

@@ -1,9 +1,18 @@
 file = { SOI ~
-     comment_line* ~
+     ( comment_line | int_split_line )* ~
      problem_line ~
      quant_set* ~
      clause+ ~ NEWLINE? ~
      EOI }
+
+int_split_line = { "cs int " ~ ("[ " ~ (pnum ~ " ")+ ~ "] ")? ~
+               cmp ~ " " ~ (pnum
+              | ("{ " ~ (("0" | "1")+ ~ " ")+ ~ "}")) ~
+              ((" ; [ " ~ (pnum ~ " ")+ ~ "] ")? ~
+               cmp ~ " " ~ pnum
+              | ("{ " ~ (("0" | "1")+ ~ " ")+ ~ "}"))* ~
+               NEWLINE }
+
 comment_line = _{ "c " ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
 problem_line = { "p cnf " ~ (pnum) ~ " " ~ (pnum) ~ NEWLINE }
 
@@ -12,3 +21,4 @@ quantifier = @{ "e" | "a" }
 clause = { (pnum ~ " ")* ~ "0" ~ NEWLINE }
 
 pnum = { "-"? ~ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
+cmp = { "<" | ">" | "=" }
