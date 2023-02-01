@@ -6,6 +6,7 @@ use std::path::Path;
 use pest::Parser;
 use std::fs::File;
 use std::io::prelude::*;
+use std::io::BufWriter;
 
 #[derive(Parser)]
 #[grammar = "qdimacs.pest"]
@@ -50,9 +51,9 @@ fn sign(n: i32) -> i32 {
 }
 
 pub fn write_qdimacs(tgt: &Path, formula: &Formula) -> std::io::Result<()> {
-    let mut file = File::create(tgt)?;
+    let mut file = BufWriter::new(File::create(tgt).expect("File could not be created!"));
     write!(
-        &mut file,
+        file,
         "p cnf {} {}\n",
         formula.nr_of_variables, formula.nr_of_clauses
     )?;
@@ -62,26 +63,26 @@ pub fn write_qdimacs(tgt: &Path, formula: &Formula) -> std::io::Result<()> {
         let q = *q_;
         if q < 0 && last_q >= 0 {
             if last_q != 0 {
-                write!(&mut file, " 0\n")?;
+                write!(file, " 0\n")?;
             }
-            write!(&mut file, "e {}", -q)?;
+            write!(file, "e {}", -q)?;
         } else if q > 0 && last_q <= 0 {
             if last_q != 0 {
-                write!(&mut file, " 0\n")?;
+                write!(file, " 0\n")?;
             }
-            write!(&mut file, "a {}", q)?;
+            write!(file, "a {}", q)?;
         } else {
             if q < 0 {
-                write!(&mut file, " {}", -q)?;
+                write!(file, " {}", -q)?;
             } else {
-                write!(&mut file, " {}", q)?;
+                write!(file, " {}", q)?;
             }
         }
         last_q = q;
     }
 
     if last_q != 0 {
-        write!(&mut file, " 0\n")?;
+        write!(file, " 0\n")?;
     }
 
     for clause in formula.matrix.iter() {
@@ -92,7 +93,7 @@ pub fn write_qdimacs(tgt: &Path, formula: &Formula) -> std::io::Result<()> {
             space_separated.push_str(" ");
         }
 
-        write!(&mut file, "{}0\n", space_separated)?;
+        write!(file, "{}0\n", space_separated)?;
     }
     Ok(())
 }
@@ -237,7 +238,7 @@ pub fn parse_qdimacs(qdimacs: &str) -> Result<Formula, String> {
                 IntegerSplitKind::LessThan | IntegerSplitKind::GreaterThan => {
                     var_constraint_to_nr_of_bits(s.constraints[0].target[0][0])
                 }
-                IntegerSplitKind::Equals => s.constraints[0].target[0].len() as i32
+                IntegerSplitKind::Equals => s.constraints[0].target[0].len() as i32,
             };
             s.vars = prefix[(prefix_start as usize)..((prefix_start + nr_of_bits) as usize)]
                 .iter()
