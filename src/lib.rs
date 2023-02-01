@@ -1,4 +1,5 @@
 extern crate pest;
+use bitvec::prelude::*;
 #[macro_use]
 extern crate pest_derive;
 use std::path::Path;
@@ -25,10 +26,39 @@ pub struct IntegerSplitConstraint {
     pub target: Vec<Vec<i32>>,
 }
 
+fn to_u64(slice: &[i32]) -> u64 {
+    slice
+        .iter()
+        .map(|x| if *x > 0 { 1 } else { 0 })
+        .fold(0, |acc, b| acc * 2 + b as u64)
+}
+
+impl IntegerSplitConstraint {
+    pub fn satisfied(&self, bits: &[i32], num: u64) -> bool {
+        match self.kind {
+            IntegerSplitKind::LessThan => num < self.target[0][0] as u64,
+            IntegerSplitKind::GreaterThan => num > self.target[0][0] as u64,
+            IntegerSplitKind::Equals => self.target.iter().any(|tgt| {
+                std::iter::zip(bits, tgt)
+                    .map(|(v, b)| (*b == 1 && *v > 0) || (*b == 0 && *v < 0))
+                    .all(|x| x)
+            }),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct IntegerSplit {
     pub vars: Vec<i32>,
     pub constraints: Vec<IntegerSplitConstraint>,
+}
+
+impl IntegerSplit {
+    pub fn satisfied(&self, v: &[i32]) -> bool {
+        assert!(v.len() < 64);
+        let num = to_u64(v);
+        self.constraints.iter().any(|x| x.satisfied(v, num))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -38,6 +68,90 @@ pub struct Formula {
     pub matrix: Vec<Vec<i32>>,
     pub nr_of_variables: i32,
     pub nr_of_clauses: i32,
+}
+
+#[derive(Debug, Clone)]
+pub struct FormulaVars<'a> {
+    formula: &'a Formula,
+    splits_depth: u64,
+    current_idx: u64,
+    max_idx: u64,
+}
+
+impl<'a> Iterator for FormulaVars<'a> {
+    type Item = Vec<i32>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current_idx + 1 > self.max_idx {
+            None
+        } else {
+            let idx = self.current_idx;
+            self.current_idx += 1;
+            let bv = idx.view_bits::<Lsb0>();
+            let vars: Vec<i32> = self.formula.splits[0..self.splits_depth as usize]
+                .iter()
+                .map(|x| x.vars.clone().into_iter())
+                .flatten()
+                .collect();
+            let current = std::iter::zip(bv, vars.into_iter().rev())
+                .map(|(b, v)| if *b { v } else { (v as i32) * -1 as i32 })
+                .rev()
+                .collect();
+            Some(current)
+        }
+    }
+}
+
+impl Formula {
+    pub fn embedded_splits_max_depth(&self) -> usize {
+        self.splits.iter().map(|x| x.vars.len()).sum()
+    }
+    pub fn embedded_splits_round_fitting(&self, mut d: i64) -> (u64, u64) {
+        let mut computed_depth: u64 = 0;
+        let mut split_count = 0;
+        for s in self.splits.iter() {
+            d -= s.vars.len() as i64;
+            if d >= 0 {
+                computed_depth += s.vars.len() as u64;
+                split_count += 1;
+            } else {
+                return (computed_depth, split_count);
+            }
+        }
+        (computed_depth, split_count)
+    }
+    fn iterate_possible_vars(&self, bit_depth: u64, splits_depth: u64) -> FormulaVars {
+        let base: u64 = 2;
+        FormulaVars {
+            formula: &self,
+            splits_depth,
+            current_idx: 0,
+            max_idx: base.pow(bit_depth as u32),
+        }
+    }
+    pub fn produce_splits(&self, bit_depth: u64, splits_depth: u64) -> Vec<Vec<i32>> {
+        let split_var_lengths: Vec<usize> = self.splits[0..splits_depth as usize]
+            .iter()
+            .map(|split| split.vars.len())
+            .collect();
+        let split_ranges: Vec<(usize, usize)> = (0..splits_depth as usize)
+            .map(|i| {
+                let p = split_var_lengths[0..i].iter().sum();
+                (p, p + split_var_lengths[i])
+            })
+            .collect();
+        let splits = &self.splits[0..splits_depth as usize];
+
+        let vars = self
+            .iterate_possible_vars(bit_depth, splits_depth)
+            .filter(|x| {
+                std::iter::zip(splits, &split_ranges)
+                    .all(|(split, (begin, end))| split.satisfied(&x[*begin..*end]))
+            })
+            .collect();
+        println!("Resulted in: {:?}", vars);
+        vars
+    }
 }
 
 fn sign(n: i32) -> i32 {

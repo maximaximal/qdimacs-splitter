@@ -61,9 +61,9 @@ fn assume_prefix_vars(f: &Formula, filename: &str, v: u64, depth: u64) {
     write_qdimacs(&out_path, &assumed_f).unwrap();
 }
 
-fn process_formula_splits(formula: &Formula) {
-    let depth: u32 = formula.splits.iter().map(|x| x.vars.len() as u32).sum();
-    println!("Depth: {}", depth);
+fn process_formula_splits(formula: &Formula, bit_depth: u64, splits_depth: u64) {
+    println!("Depth: {}, BitDepth: {}", splits_depth, bit_depth);
+    formula.produce_splits(bit_depth, splits_depth);
 }
 
 fn main() {
@@ -74,7 +74,12 @@ fn main() {
         let formula_str = fs::read_to_string(&filename).unwrap();
         let formula = parse_qdimacs(&formula_str).unwrap();
         if formula.splits.len() > 0 {
-            process_formula_splits(&formula);
+            let depth: u64 = std::cmp::min(
+                args.depth as u64,
+                formula.embedded_splits_max_depth() as u64,
+            );
+            let (rounded_depth, split_count) = formula.embedded_splits_round_fitting(depth as i64);
+            process_formula_splits(&formula, rounded_depth, split_count);
         } else {
             let base: u64 = 2;
             let depth: u64 = std::cmp::min(args.depth as u64, formula.prefix.len() as u64);
