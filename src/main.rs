@@ -37,7 +37,7 @@ fn prefix_name_combiner(filename: &str, name_prefix: Vec<u8>) -> PathBuf {
     b
 }
 
-fn assume_prefix_vars(f: &Formula, filename: &str, v: u32, depth: u32) {
+fn assume_prefix_vars(f: &Formula, filename: &str, v: u64, depth: u64) {
     let mut assumed_f: Formula = Clone::clone(f);
 
     let mut name_prefix: Vec<u8> = (0..depth).map(|_| 'f' as u8).collect();
@@ -76,9 +76,9 @@ fn main() {
         if formula.splits.len() > 0 {
             process_formula_splits(&formula);
         } else {
-            let base: u32 = 2;
-            let depth = std::cmp::min(args.depth, formula.prefix.len() as u32);
-            for i in 0..(base.pow(depth)) {
+            let base: u64 = 2;
+            let depth: u64 = std::cmp::min(args.depth as u64, formula.prefix.len() as u64);
+            for i in 0..(base.pow(depth as u32)) {
                 assume_prefix_vars(&formula, &filename, i, depth);
             }
         }
