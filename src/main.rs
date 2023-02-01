@@ -61,9 +61,20 @@ fn assume_prefix_vars(f: &Formula, filename: &str, v: u64, depth: u64) {
     write_qdimacs(&out_path, &assumed_f).unwrap();
 }
 
-fn process_formula_splits(formula: &Formula, bit_depth: u64, splits_depth: u64) {
-    println!("Depth: {}, BitDepth: {}", splits_depth, bit_depth);
-    formula.produce_splits(bit_depth, splits_depth);
+fn process_formula_splits(formula: &Formula, bit_depth: u64, splits_depth: u64, filename: &str) {
+    let splits = formula.produce_splits(bit_depth, splits_depth);
+
+    for i in 0..splits.len() {
+        let mut assumed_f: Formula = Clone::clone(formula);
+        for v in &splits[i] {
+            assumed_f.matrix.push(vec![*v]);
+            assumed_f.nr_of_clauses += 1;
+        }
+        let path = Path::new(filename);
+        let out_path_string = i.to_string() + ":" + path.file_name().unwrap().to_str().unwrap();
+        let out_path = Path::new(&out_path_string);
+        write_qdimacs(out_path, &assumed_f).unwrap();
+    }
 }
 
 fn main() {
@@ -79,7 +90,7 @@ fn main() {
                 formula.embedded_splits_max_depth() as u64,
             );
             let (rounded_depth, split_count) = formula.embedded_splits_round_fitting(depth as i64);
-            process_formula_splits(&formula, rounded_depth, split_count);
+            process_formula_splits(&formula, rounded_depth, split_count, &filename);
         } else {
             let base: u64 = 2;
             let depth: u64 = std::cmp::min(args.depth as u64, formula.prefix.len() as u64);

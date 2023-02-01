@@ -149,7 +149,6 @@ impl Formula {
                     .all(|(split, (begin, end))| split.satisfied(&x[*begin..*end]))
             })
             .collect();
-        println!("Resulted in: {:?}", vars);
         vars
     }
 }

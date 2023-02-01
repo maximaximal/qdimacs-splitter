@@ -1,5 +1,5 @@
-cs int = { 11 00 }
-cs int [ 1 ] < 2
+cs int [ 1 2 ] < 2
+cs int = { 10 01 }
 p cnf 10 2
 a 1 2 0
 e 3 4 0
