@@ -2,7 +2,7 @@ use bitvec::prelude::*;
 use clap::Parser;
 use file_matcher::FilesNamed;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use qdimacs_splitter::{parse_qdimacs, write_qdimacs, Formula};
 
@@ -26,6 +26,17 @@ fn get_current_working_dir() -> std::io::Result<PathBuf> {
     std::env::current_dir()
 }
 
+fn prefix_name_combiner(filename: &str, name_prefix: Vec<u8>) -> PathBuf {
+    let origpath = Path::new(filename);
+    let orig_filename = origpath.file_name().unwrap();
+    let changed_filename =
+        String::from_utf8(name_prefix).unwrap() + ":" + orig_filename.to_str().unwrap();
+    let path = Path::new(&changed_filename);
+    let mut b = PathBuf::new();
+    b.push(path);
+    b
+}
+
 fn assume_prefix_vars(f: &Formula, filename: &str, v: u32, depth: u32) {
     let mut assumed_f: Formula = Clone::clone(f);
 
@@ -45,9 +56,14 @@ fn assume_prefix_vars(f: &Formula, filename: &str, v: u32, depth: u32) {
         assumed_f.matrix.push(vec![lit]);
         assumed_f.nr_of_clauses += 1;
     }
-    let out_name = String::from_utf8(name_prefix).unwrap() + ":" + filename;
 
-    write_qdimacs(&out_name, &assumed_f).unwrap();
+    let out_path = prefix_name_combiner(filename, name_prefix);
+    write_qdimacs(&out_path, &assumed_f).unwrap();
+}
+
+fn process_formula_splits(formula: &Formula) {
+    let depth: u32 = formula.splits.iter().map(|x| x.vars.len() as u32).sum();
+    println!("Depth: {}", depth);
 }
 
 fn main() {
@@ -57,10 +73,14 @@ fn main() {
         let filename = args.split.unwrap();
         let formula_str = fs::read_to_string(&filename).unwrap();
         let formula = parse_qdimacs(&formula_str).unwrap();
-        let base: u32 = 2;
-        let depth = std::cmp::min(args.depth, formula.prefix.len() as u32);
-        for i in 0..(base.pow(depth)) {
-            assume_prefix_vars(&formula, &filename, i, depth);
+        if formula.splits.len() > 0 {
+            process_formula_splits(&formula);
+        } else {
+            let base: u32 = 2;
+            let depth = std::cmp::min(args.depth, formula.prefix.len() as u32);
+            for i in 0..(base.pow(depth)) {
+                assume_prefix_vars(&formula, &filename, i, depth);
+            }
         }
     } else if args.merge.is_some() {
         let cwd_buf = get_current_working_dir().unwrap();

@@ -1,6 +1,7 @@
 extern crate pest;
 #[macro_use]
 extern crate pest_derive;
+use std::path::Path;
 
 use pest::Parser;
 use std::fs::File;
@@ -19,14 +20,14 @@ pub enum IntegerSplitKind {
 
 #[derive(Debug, Clone)]
 pub struct IntegerSplitConstraint {
-    kind: IntegerSplitKind,
-    target: Vec<Vec<i32>>,
+    pub kind: IntegerSplitKind,
+    pub target: Vec<Vec<i32>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct IntegerSplit {
-    vars: Vec<i32>,
-    constraints: Vec<IntegerSplitConstraint>,
+    pub vars: Vec<i32>,
+    pub constraints: Vec<IntegerSplitConstraint>,
 }
 
 #[derive(Debug, Clone)]
@@ -48,7 +49,7 @@ fn sign(n: i32) -> i32 {
     }
 }
 
-pub fn write_qdimacs(tgt: &str, formula: &Formula) -> std::io::Result<()> {
+pub fn write_qdimacs(tgt: &Path, formula: &Formula) -> std::io::Result<()> {
     let mut file = File::create(tgt)?;
     write!(
         &mut file,
@@ -129,6 +130,7 @@ pub fn parse_qdimacs(qdimacs: &str) -> Result<Formula, String> {
                 let mut vars_or_cmp_rule = vars_or_cmp.as_rule();
                 let mut vars: Vec<i32> = vec![];
                 let mut nr_of_bits = 0;
+                let mut already_have_next: bool;
                 while vars_or_cmp_rule == Rule::pnum {
                     let v = vars_or_cmp.as_str().parse::<i32>().unwrap();
                     vars.push(v);
@@ -137,6 +139,7 @@ pub fn parse_qdimacs(qdimacs: &str) -> Result<Formula, String> {
                 }
 
                 loop {
+                    already_have_next = false;
                     let mut target: Vec<Vec<i32>> = vec![];
                     let kind: IntegerSplitKind = match vars_or_cmp.as_str() {
                         "<" => IntegerSplitKind::LessThan,
@@ -174,10 +177,11 @@ pub fn parse_qdimacs(qdimacs: &str) -> Result<Formula, String> {
                                         panic!("Number of assigned bits in equals must always be the same!");
                                     }
                                 }
+                                next = inner_rules.next();
                             } else {
+                                already_have_next = true;
                                 break;
                             }
-                            next = inner_rules.next();
                         }
                     } else {
                         let next = inner_rules.next();
@@ -189,11 +193,13 @@ pub fn parse_qdimacs(qdimacs: &str) -> Result<Formula, String> {
                     let constraint = IntegerSplitConstraint { kind, target };
                     constraints.push(constraint);
 
-                    let next = inner_rules.next();
-                    if next.is_some() {
-                        vars_or_cmp = next.unwrap();
-                    } else {
-                        break;
+                    if !already_have_next {
+                        let next = inner_rules.next();
+                        if next.is_some() {
+                            vars_or_cmp = next.unwrap();
+                        } else {
+                            break;
+                        }
                     }
                 }
                 splits.push(IntegerSplit { vars, constraints });
@@ -231,12 +237,13 @@ pub fn parse_qdimacs(qdimacs: &str) -> Result<Formula, String> {
                 IntegerSplitKind::LessThan | IntegerSplitKind::GreaterThan => {
                     var_constraint_to_nr_of_bits(s.constraints[0].target[0][0])
                 }
-                IntegerSplitKind::Equals => s.constraints[0].target[0].len() as i32,
+                IntegerSplitKind::Equals => s.constraints[0].target[0].len() as i32
             };
             s.vars = prefix[(prefix_start as usize)..((prefix_start + nr_of_bits) as usize)]
                 .iter()
                 .map(|x| x.abs())
                 .collect();
+            prefix_start += nr_of_bits;
         } else {
             prefix_start += s.vars.len() as i32;
         }
@@ -244,13 +251,10 @@ pub fn parse_qdimacs(qdimacs: &str) -> Result<Formula, String> {
 
     // Consistency Check with Quantifier Blocks
     for s in splits.iter() {
-        println!("{:?}", s);
         let mut last_q = 0;
-        println!("Vars: {:?}", s.vars);
         for v in s.vars.iter() {
             let q_pos = prefix.iter().position(|q| q.abs() == *v).unwrap();
             let q = prefix[q_pos];
-            println!("V: {} Q: {}", v, q);
             if last_q != 0 && sign(last_q) != sign(q) {
                 panic!("One constraint over multiple different quantifier types! Covered variables {} and {}", last_q, q);
             }
