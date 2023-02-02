@@ -14,6 +14,19 @@ use std::io::BufWriter;
 struct QDIMACSParser;
 
 #[derive(Debug, Clone)]
+pub enum SolverResult {
+    Sat,
+    Unsat,
+    Timeout,
+}
+
+#[derive(Debug, Clone)]
+pub struct LogFile {
+    wall_seconds: f64,
+    result: SolverResult,
+}
+
+#[derive(Debug, Clone)]
 pub enum IntegerSplitKind {
     LessThan,
     GreaterThan,

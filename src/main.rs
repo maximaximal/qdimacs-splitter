@@ -109,8 +109,10 @@ fn main() {
             .flatten()
             .collect();
 
-        for f in files.iter() {
-            println!("File: {}", f.as_path().display());
+        if files.len() == 1 {
+
+        } else {
+            panic!("Merging tftftf files (exhaustive splits) not implemented yet!");
         }
     } else {
         println!("!! Require either --split or --merge !!");
