@@ -4,7 +4,7 @@ use file_matcher::FilesNamed;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use qdimacs_splitter::{parse_qdimacs, write_qdimacs, Formula, extract_results_from_files};
+use qdimacs_splitter::{extract_results_from_files, parse_qdimacs, write_qdimacs, Formula};
 
 /// Tool to explore a QBF formula together with a QBF solver to aid
 /// during the encoding debugging process.
@@ -14,9 +14,12 @@ struct Args {
     /// Input file to process
     #[arg(short, long)]
     split: Option<String>,
-    /// Input file to process. Separate multiple files with spaces or supply wildcards like "*_orig_formula.qdimacs"
-    #[arg(short, long, use_value_delimiter = true, value_delimiter = ' ')]
-    merge: Option<Vec<String>>,
+    /// Original input file to merge together. Also requires the splitting depth and name of the run.
+    #[arg(short, long)]
+    orig: Option<String>,
+    /// Name of the run to merge.
+    #[arg(short, long)]
+    name: Option<String>,
     /// Depth to split into
     #[arg(short, long, default_value_t = 4)]
     depth: u32,
@@ -61,8 +64,8 @@ fn assume_prefix_vars(f: &Formula, filename: &str, v: u64, depth: u64) {
     write_qdimacs(&out_path, &assumed_f).unwrap();
 }
 
-fn process_formula_splits(formula: &Formula, bit_depth: u64, splits_depth: u64, filename: &str) {
-    let splits = formula.produce_splits(bit_depth, splits_depth);
+fn process_formula_splits(formula: &Formula, depth: u32, filename: &str) {
+    let splits = formula.produce_splits(depth);
 
     for i in 0..splits.len() {
         let mut assumed_f: Formula = Clone::clone(formula);
@@ -84,48 +87,20 @@ fn main() {
         let filename = args.split.unwrap();
         let formula_str = fs::read_to_string(&filename).unwrap();
         let formula = parse_qdimacs(&formula_str).unwrap();
-        if formula.splits.len() > 0 {
-            let depth: u64 = std::cmp::min(
-                args.depth as u64,
-                formula.embedded_splits_max_depth() as u64,
-            );
-            let (rounded_depth, split_count) = formula.embedded_splits_round_fitting(depth as i64);
-            process_formula_splits(&formula, rounded_depth, split_count, &filename);
-        } else {
-            let base: u64 = 2;
-            let depth: u64 = std::cmp::min(args.depth as u64, formula.prefix.len() as u64);
-            for i in 0..(base.pow(depth as u32)) {
-                assume_prefix_vars(&formula, &filename, i, depth);
-            }
-        }
-    } else if args.merge.is_some() {
+        process_formula_splits(&formula, args.depth, &filename);
+    } else if args.orig.is_some() && args.name.is_some() {
         let cwd_buf = get_current_working_dir().unwrap();
         let cwd = cwd_buf.as_path();
-        let merge = args.merge.unwrap();
-        let mut files: Vec<PathBuf> = merge
-            .iter()
-            .map(|x| FilesNamed::wildmatch(x).within(cwd).find().unwrap())
-            .flatten()
-            .collect();
+        let orig = args.orig.unwrap();
+        let name = args.name.unwrap();
 
-        println!("Files: {:?}, Working Dir: {:?}", files, cwd);
+        println!("Orig: {:?}, Working Dir: {:?}", orig, cwd);
 
-        if files.len() == 0 {
-            let mut p = PathBuf::new();
-            p.push(&merge[0]);
-            if !p.exists() {
-                panic!("Did not match any files with {:?}!", merge);
-            }
-            files.push(p);
-        }
+        let orig_path = Path::new(&orig);
 
-        if files.len() == 1 {
-            let results = extract_results_from_files(files);
-            println!("Results: {:?}", results);
-        } else {
-            panic!("Merging tftftf files (exhaustive splits) not implemented yet!");
-        }
+        let results = extract_results_from_files(&orig_path, &name);
+        println!("Results: {:?}", results);
     } else {
-        println!("!! Require either --split or --merge !!");
+        println!("!! Require either --split or (--orig and name) !!");
     }
 }

@@ -61,16 +61,17 @@ fn extract_result_from_file(path: &PathBuf) -> SolverResult {
         let exit_code_match = EXIT_CODE.is_match(&line);
         let wall_time_match = WALL_TIME.is_match(&line);
     }
-    
+
     SolverResult {
         wall_seconds,
         result,
     }
 }
 
-pub fn extract_results_from_files(orig_file: PathBuf) -> Vec<SolverResult> {
-
-    paths.iter().map(|x| extract_result_from_file(x)).collect()
+pub fn extract_results_from_files(orig_file: &Path, name: &str) -> Vec<SolverResult> {
+    println!("Path: {:?}, Name: {}", orig_file, name);
+    //paths.iter().map(|x| extract_result_from_file(x)).collect()
+    vec![]
 }
 
 fn to_u64(slice: &[i32]) -> u64 {
@@ -176,7 +177,8 @@ impl Formula {
             max_idx: base.pow(bit_depth as u32),
         }
     }
-    pub fn produce_splits(&self, bit_depth: u64, splits_depth: u64) -> Vec<Vec<i32>> {
+    fn produce_splits_from_embedded(&self, bit_depth: u64, splits_depth: u64) -> Vec<Vec<i32>> {
+        assert!(self.splits.len() > 0);
         let split_var_lengths: Vec<usize> = self.splits[0..splits_depth as usize]
             .iter()
             .map(|split| split.vars.len())
@@ -197,6 +199,36 @@ impl Formula {
             })
             .collect();
         vars
+    }
+    fn produce_splits_from_prefix_expansion(&self, bit_depth: u64) -> Vec<Vec<i32>> {
+        let base: u64 = 2;
+        let depth: u64 = std::cmp::min(bit_depth as u64, self.prefix.len() as u64);
+
+        (0..(base.pow(depth as u32)))
+            .map(|v| {
+                let bv = v.view_bits::<Lsb0>();
+                (0..depth as usize)
+                    .map(|i| {
+                        let bit = bv[i];
+                        let abs_lit: i32 = self.prefix[i].abs();
+                        if bit {
+                            abs_lit
+                        } else {
+                            -abs_lit
+                        }
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+    pub fn produce_splits(&self, depth: u32) -> Vec<Vec<i32>> {
+        if self.splits.len() > 0 {
+            let (rounded_depth, split_count) = self.embedded_splits_round_fitting(depth as i64);
+            self.produce_splits_from_embedded(rounded_depth, split_count)
+        } else {
+            let depth: u64 = std::cmp::min(depth as u64, self.prefix.len() as u64);
+            self.produce_splits_from_prefix_expansion(depth)
+        }
     }
 }
 
