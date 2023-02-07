@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use pest::Parser;
 use regex::Regex;
+use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
@@ -42,7 +43,7 @@ pub struct IntegerSplitConstraint {
     pub target: Vec<Vec<i32>>,
 }
 
-fn extract_result_from_file(path: &PathBuf) -> SolverResult {
+fn extract_result_from_file(path: &Path) -> SolverResult {
     lazy_static! {
         static ref EXIT_CODE: Regex =
             Regex::new("Command exited with non-zero status (\\d+)").unwrap();
@@ -50,16 +51,32 @@ fn extract_result_from_file(path: &PathBuf) -> SolverResult {
             Regex::new("^\\[runlim\\] real:\\s*(\\d+(?:\\.\\d+))").unwrap();
     }
 
-    let wall_seconds: f64 = 0.0;
-    let result = SolverReturnCode::Timeout;
+    println!("Path: {:?}", path);
+    let mut wall_seconds: f64 = 0.0;
+    let mut result: SolverReturnCode = SolverReturnCode::Timeout;
 
     let f = File::open(path).unwrap();
     let f = BufReader::new(f);
 
     for line in f.lines() {
         let line = line.unwrap();
-        let exit_code_match = EXIT_CODE.is_match(&line);
-        let wall_time_match = WALL_TIME.is_match(&line);
+        let exit_code = EXIT_CODE.captures(&line).and_then(|c| {
+            c.get(1).and_then(|exit_code| match exit_code.as_str() {
+                "10" => Some(SolverReturnCode::Sat),
+                "20" => Some(SolverReturnCode::Unsat),
+                _ => Some(SolverReturnCode::Timeout),
+            })
+        });
+        let wall_time = WALL_TIME.captures(&line).and_then(|c| {
+            c.get(1)
+                .and_then(|wall_time| Some(wall_time.as_str().parse::<f64>().unwrap()))
+        });
+        if exit_code.is_some() {
+            result = exit_code.unwrap()
+        }
+        if wall_time.is_some() {
+            wall_seconds = wall_time.unwrap()
+        }
     }
 
     SolverResult {
@@ -68,10 +85,31 @@ fn extract_result_from_file(path: &PathBuf) -> SolverResult {
     }
 }
 
-pub fn extract_results_from_files(orig_file: &Path, name: &str) -> Vec<SolverResult> {
-    println!("Path: {:?}, Name: {}", orig_file, name);
-    //paths.iter().map(|x| extract_result_from_file(x)).collect()
-    vec![]
+pub fn extract_results_from_files(
+    orig_file: &Path,
+    name: &str,
+    depth: u32,
+    cwd: &Path,
+) -> Vec<SolverResult> {
+    let formula_str = fs::read_to_string(&orig_file).unwrap();
+    let formula = parse_qdimacs(&formula_str).unwrap();
+    let splits = formula.produce_splits(depth);
+    (0..splits.len())
+        .map(|n| {
+            // Follows the Simsala convention.
+            let mut filename: String = String::new();
+            filename.push_str(name);
+            filename.push_str("-");
+            filename.push_str(&n.to_string());
+            filename.push_str(":");
+            filename.push_str(orig_file.to_str().unwrap());
+            filename.push_str(".log");
+            let mut p = PathBuf::new();
+            p.push(cwd);
+            p.push(filename);
+            extract_result_from_file(&p.as_path())
+        })
+        .collect()
 }
 
 fn to_u64(slice: &[i32]) -> u64 {
