@@ -4,7 +4,7 @@ use file_matcher::FilesNamed;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use qdimacs_splitter::{parse_qdimacs, write_qdimacs, Formula};
+use qdimacs_splitter::{parse_qdimacs, write_qdimacs, Formula, extract_results_from_files};
 
 /// Tool to explore a QBF formula together with a QBF solver to aid
 /// during the encoding debugging process.
@@ -101,16 +101,27 @@ fn main() {
     } else if args.merge.is_some() {
         let cwd_buf = get_current_working_dir().unwrap();
         let cwd = cwd_buf.as_path();
-        let files: Vec<PathBuf> = args
-            .merge
-            .unwrap()
+        let merge = args.merge.unwrap();
+        let mut files: Vec<PathBuf> = merge
             .iter()
             .map(|x| FilesNamed::wildmatch(x).within(cwd).find().unwrap())
             .flatten()
             .collect();
 
-        if files.len() == 1 {
+        println!("Files: {:?}, Working Dir: {:?}", files, cwd);
 
+        if files.len() == 0 {
+            let mut p = PathBuf::new();
+            p.push(&merge[0]);
+            if !p.exists() {
+                panic!("Did not match any files with {:?}!", merge);
+            }
+            files.push(p);
+        }
+
+        if files.len() == 1 {
+            let results = extract_results_from_files(files);
+            println!("Results: {:?}", results);
         } else {
             panic!("Merging tftftf files (exhaustive splits) not implemented yet!");
         }

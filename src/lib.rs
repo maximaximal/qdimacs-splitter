@@ -2,11 +2,14 @@ extern crate pest;
 use bitvec::prelude::*;
 #[macro_use]
 extern crate pest_derive;
-use std::path::Path;
+use lazy_static::lazy_static;
+use std::path::{Path, PathBuf};
 
 use pest::Parser;
+use regex::Regex;
 use std::fs::File;
 use std::io::prelude::*;
+use std::io::BufReader;
 use std::io::BufWriter;
 
 #[derive(Parser)]
@@ -14,16 +17,16 @@ use std::io::BufWriter;
 struct QDIMACSParser;
 
 #[derive(Debug, Clone)]
-pub enum SolverResult {
+pub enum SolverReturnCode {
     Sat,
     Unsat,
     Timeout,
 }
 
 #[derive(Debug, Clone)]
-pub struct LogFile {
+pub struct SolverResult {
     wall_seconds: f64,
-    result: SolverResult,
+    result: SolverReturnCode,
 }
 
 #[derive(Debug, Clone)]
@@ -37,6 +40,37 @@ pub enum IntegerSplitKind {
 pub struct IntegerSplitConstraint {
     pub kind: IntegerSplitKind,
     pub target: Vec<Vec<i32>>,
+}
+
+fn extract_result_from_file(path: &PathBuf) -> SolverResult {
+    lazy_static! {
+        static ref EXIT_CODE: Regex =
+            Regex::new("Command exited with non-zero status (\\d+)").unwrap();
+        static ref WALL_TIME: Regex =
+            Regex::new("^\\[runlim\\] real:\\s*(\\d+(?:\\.\\d+))").unwrap();
+    }
+
+    let wall_seconds: f64 = 0.0;
+    let result = SolverReturnCode::Timeout;
+
+    let f = File::open(path).unwrap();
+    let f = BufReader::new(f);
+
+    for line in f.lines() {
+        let line = line.unwrap();
+        let exit_code_match = EXIT_CODE.is_match(&line);
+        let wall_time_match = WALL_TIME.is_match(&line);
+    }
+    
+    SolverResult {
+        wall_seconds,
+        result,
+    }
+}
+
+pub fn extract_results_from_files(orig_file: PathBuf) -> Vec<SolverResult> {
+
+    paths.iter().map(|x| extract_result_from_file(x)).collect()
 }
 
 fn to_u64(slice: &[i32]) -> u64 {

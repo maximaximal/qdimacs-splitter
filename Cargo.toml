@@ -11,6 +11,8 @@ pest = "2.0"
 pest_derive = "2.0"
 file-matcher = "0.7.0"
 bitvec = "1.0.1"
+regex = "1"
+lazy_static = "1.4.0"
 
 [profile.release]
 lto = true
