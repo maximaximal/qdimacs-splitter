@@ -90,26 +90,29 @@ pub fn extract_results_from_files(
     name: &str,
     depth: u32,
     cwd: &Path,
-) -> Vec<SolverResult> {
+) -> (Formula, Vec<SolverResult>) {
     let formula_str = fs::read_to_string(&orig_file).unwrap();
     let formula = parse_qdimacs(&formula_str).unwrap();
     let splits = formula.produce_splits(depth);
-    (0..splits.len())
-        .map(|n| {
-            // Follows the Simsala convention.
-            let mut filename: String = String::new();
-            filename.push_str(name);
-            filename.push_str("-");
-            filename.push_str(&n.to_string());
-            filename.push_str(":");
-            filename.push_str(orig_file.to_str().unwrap());
-            filename.push_str(".log");
-            let mut p = PathBuf::new();
-            p.push(cwd);
-            p.push(filename);
-            extract_result_from_file(&p.as_path())
-        })
-        .collect()
+    (
+        formula,
+        (0..splits.len())
+            .map(|n| {
+                // Follows the Simsala convention.
+                let mut filename: String = String::new();
+                filename.push_str(name);
+                filename.push_str("-");
+                filename.push_str(&n.to_string());
+                filename.push_str(":");
+                filename.push_str(orig_file.file_name().unwrap().to_str().unwrap());
+                filename.push_str(".log");
+                let mut p = PathBuf::new();
+                p.push(cwd);
+                p.push(filename);
+                extract_result_from_file(&p.as_path())
+            })
+            .collect(),
+    )
 }
 
 fn to_u64(slice: &[i32]) -> u64 {
