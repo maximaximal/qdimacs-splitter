@@ -17,7 +17,7 @@ use std::io::BufWriter;
 #[grammar = "qdimacs.pest"]
 struct QDIMACSParser;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SolverReturnCode {
     Sat,
     Unsat,
@@ -26,8 +26,8 @@ pub enum SolverReturnCode {
 
 #[derive(Debug, Clone)]
 pub struct SolverResult {
-    wall_seconds: f64,
-    result: SolverReturnCode,
+    pub wall_seconds: f64,
+    pub result: SolverReturnCode,
 }
 
 #[derive(Debug, Clone)]
@@ -51,7 +51,6 @@ fn extract_result_from_file(path: &Path) -> SolverResult {
             Regex::new("^\\[runlim\\] real:\\s*(\\d+(?:\\.\\d+))").unwrap();
     }
 
-    println!("Path: {:?}", path);
     let mut wall_seconds: f64 = 0.0;
     let mut result: SolverReturnCode = SolverReturnCode::Timeout;
 
@@ -143,10 +142,32 @@ pub struct IntegerSplit {
 }
 
 impl IntegerSplit {
+    pub fn satisfied_with_num(&self, v: &[i32], num: u64) -> bool {
+        self.constraints.iter().any(|x| x.satisfied(v, num))
+    }
+
     pub fn satisfied(&self, v: &[i32]) -> bool {
         assert!(v.len() < 64);
         let num = to_u64(v);
-        self.constraints.iter().any(|x| x.satisfied(v, num))
+        self.satisfied_with_num(v, num)
+    }
+
+    pub fn nr_of_splits(&self) -> usize {
+        // Just generate all numbers from 0 to 2^n and check all of
+        // them, afterwards count how many passed.
+        let base: u64 = 2;
+        let n: u64 = base.pow(self.vars.len() as u32);
+        (0..n)
+            .map(|i| {
+                let v: Vec<i32> = n
+                    .view_bits::<Lsb0>()
+                    .iter()
+                    .map(|b| if *b { 1 as i32 } else { 0 as i32 })
+                    .collect();
+                self.satisfied_with_num(&v, i)
+            })
+            .filter(|x| *x)
+            .count()
     }
 }
 
@@ -481,6 +502,23 @@ pub fn parse_qdimacs(qdimacs: &str) -> Result<Formula, String> {
         } else {
             prefix_start += s.vars.len() as i32;
         }
+    }
+
+    if splits.len() == 0 && prefix.len() > 0 {
+        // Fill integer splits with default splitting, i.e. one
+        // variable in order of prefix < 2. Every QBF thus becomes
+        // splittable using just this technique!
+        let n = std::cmp::min(prefix.len(), 64);
+        splits = prefix[0..n]
+            .into_iter()
+            .map(|p| IntegerSplit {
+                vars: vec![p.abs()],
+                constraints: vec![IntegerSplitConstraint {
+                    kind: IntegerSplitKind::LessThan,
+                    target: vec![vec![2]],
+                }],
+            })
+            .collect()
     }
 
     // Consistency Check with Quantifier Blocks

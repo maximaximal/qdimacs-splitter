@@ -3,7 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use qdimacs_splitter::{
-    extract_results_from_files, parse_qdimacs, write_qdimacs, Formula, SolverResult,
+    extract_results_from_files, parse_qdimacs, write_qdimacs, Formula, IntegerSplit, SolverResult,
+    SolverReturnCode,
 };
 
 /// Tool to explore a QBF formula together with a QBF solver to aid
@@ -50,7 +51,133 @@ fn process_formula_splits(formula: &Formula, depth: u32, filename: &str, working
     }
 }
 
-fn produce_statistics_from_run(formula: &Formula, results: &[SolverResult]) {}
+#[derive(Debug)]
+struct SolveStatistics {
+    pub minimal_execution_time_seconds: f64,
+    pub maximum_possible_speedup: f64,
+    pub summed_execution_time_seconds: f64,
+    pub required_cores: i32,
+    pub result: SolverReturnCode,
+}
+
+enum Quantifier {
+    Forall,
+    Exists,
+}
+
+// Reduce the result by one layer.
+fn reduce_result(
+    quant: Quantifier,
+    single_layer_width: usize,
+    results: Vec<SolverResult>,
+) -> Vec<SolverResult> {
+    assert!(single_layer_width > 0);
+    let result_count = results.len() / single_layer_width;
+    (0..result_count)
+        .map(|x| {
+            let begin = x * single_layer_width;
+            let end = (x + 1) * single_layer_width;
+
+            let resit = || (begin..end).map(|x| &results[x]);
+            let min_of = |compare_against: SolverReturnCode| -> f64 {
+                resit()
+                    .filter(|x| x.result == compare_against)
+                    .map(|x| x.wall_seconds)
+                    .min_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
+                    .unwrap()
+            };
+            let sum = || -> f64 {
+                resit()
+                    .filter(|x| x.result != SolverReturnCode::Timeout)
+                    .map(|x| x.wall_seconds)
+                    .sum()
+            };
+
+            if matches!(quant, Quantifier::Exists) {
+                if resit().any(|r| matches!(r.result, SolverReturnCode::Sat)) {
+                    SolverResult {
+                        wall_seconds: min_of(SolverReturnCode::Sat),
+                        result: SolverReturnCode::Sat,
+                    }
+                } else {
+                    if resit().all(|r| matches!(r.result, SolverReturnCode::Unsat)) {
+                        SolverResult {
+                            wall_seconds: sum(),
+                            result: SolverReturnCode::Unsat,
+                        }
+                    } else {
+                        SolverResult {
+                            wall_seconds: 10000000.0,
+                            result: SolverReturnCode::Timeout,
+                        }
+                    }
+                }
+            } else {
+                if resit().all(|r| matches!(r.result, SolverReturnCode::Sat)) {
+                    SolverResult {
+                        wall_seconds: sum(),
+                        result: SolverReturnCode::Sat,
+                    }
+                } else {
+                    if resit().any(|r| matches!(r.result, SolverReturnCode::Unsat)) {
+                        SolverResult {
+                            wall_seconds: min_of(SolverReturnCode::Unsat),
+                            result: SolverReturnCode::Unsat,
+                        }
+                    } else {
+                        SolverResult {
+                            wall_seconds: 10000000.0,
+                            result: SolverReturnCode::Timeout,
+                        }
+                    }
+                }
+            }
+        })
+        .collect()
+}
+
+fn quant_from_prefix(formula: &Formula, pos: usize) -> Quantifier {
+    if formula.prefix[pos] < 0 {
+        Quantifier::Exists
+    } else {
+        Quantifier::Forall
+    }
+}
+
+fn produce_statistics_from_run(
+    formula: &Formula,
+    results: &[SolverResult],
+    split_count: u64,
+) -> SolveStatistics {
+    let splits: Vec<&IntegerSplit> = formula.splits[0..split_count as usize]
+        .into_iter()
+        .rev()
+        .collect();
+
+    let required_cores = results.len() as i32;
+
+    let summed_execution_time_seconds: f64 = results.iter().map(|x| x.wall_seconds).sum();
+
+    let mut pos = 0;
+    let mut solver_results: Vec<SolverResult> = results.to_vec();
+    for s in splits.into_iter() {
+        let n = s.nr_of_splits();
+        solver_results = reduce_result(quant_from_prefix(&formula, pos), n, solver_results);
+        pos += n;
+    }
+
+    assert!(solver_results.len() == 1);
+
+    let minimal_execution_time_seconds: f64 = solver_results[0].wall_seconds;
+
+    SolveStatistics {
+        minimal_execution_time_seconds,
+        summed_execution_time_seconds,
+        maximum_possible_speedup: summed_execution_time_seconds / minimal_execution_time_seconds,
+        required_cores,
+        result: solver_results[0].result,
+    }
+}
 
 fn main() {
     let args = Args::parse();
@@ -79,8 +206,10 @@ fn main() {
             println!("!! Original File {} does not exist !!", orig);
         } else {
             let (formula, results) = extract_results_from_files(&orig_path, &name, args.depth, cwd);
-            produce_statistics_from_run(&formula, &results);
-            println!("Results: {:?}", results);
+            let (_rounded_depth, split_count) =
+                formula.embedded_splits_round_fitting(args.depth as i64);
+            let statistics = produce_statistics_from_run(&formula, &results, split_count);
+            println!("Statistics: {:?}", statistics);
         }
     } else {
         println!("!! Require either --split or (--orig and name) !!");
