@@ -38,10 +38,11 @@ fn process_formula_splits(formula: &Formula, depth: u32, filename: &str, working
 
     for i in 0..splits.len() {
         let mut assumed_f: Formula = Clone::clone(formula);
-        for v in &splits[i] {
+        for j in 0..splits[i].len() {
+            let v = &splits[i][j];
             // Flip forall quantifiers to existential if there is a specific assignment.
-            if assumed_f.prefix[i] > 0 {
-                assumed_f.prefix[i] = -assumed_f.prefix[i];
+            if assumed_f.prefix[j] > 0 {
+                assumed_f.prefix[j] = -assumed_f.prefix[j];
             }
             assumed_f.matrix.push(vec![*v]);
             assumed_f.nr_of_clauses += 1;
@@ -58,7 +59,6 @@ fn process_formula_splits(formula: &Formula, depth: u32, filename: &str, working
 #[derive(Debug)]
 struct SolveStatistics {
     pub minimal_execution_time_seconds: f64,
-    pub maximum_possible_speedup: f64,
     pub summed_execution_time_seconds: f64,
     pub required_cores: i32,
     pub result: SolverReturnCode,
@@ -177,7 +177,6 @@ fn produce_statistics_from_run(
     SolveStatistics {
         minimal_execution_time_seconds,
         summed_execution_time_seconds,
-        maximum_possible_speedup: summed_execution_time_seconds / minimal_execution_time_seconds,
         required_cores,
         result: solver_results[0].result,
     }
@@ -213,7 +212,10 @@ fn main() {
             let (_rounded_depth, split_count) =
                 formula.embedded_splits_round_fitting(args.depth as i64);
             let statistics = produce_statistics_from_run(&formula, &results, split_count);
-            println!("Statistics: {:?}", statistics);
+            println!("Statistics: minimal execution path: {} , summed execution time: {} , required cores: {} , result: {}",
+                     statistics.minimal_execution_time_seconds,
+                     statistics.summed_execution_time_seconds,
+                     statistics.required_cores, statistics.result);
         }
     } else {
         println!("!! Require either --split or (--orig and name) !!");

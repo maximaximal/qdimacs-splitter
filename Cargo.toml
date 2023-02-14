@@ -13,6 +13,8 @@ file-matcher = "0.7.0"
 bitvec = "1.0.1"
 regex = "1"
 lazy_static = "1.4.0"
+strum = { version = "0.24", features = ["derive"] }
+strum_macros = "0.24"
 
 [profile.release]
 lto = true

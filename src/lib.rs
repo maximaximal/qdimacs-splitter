@@ -17,7 +17,7 @@ use std::io::BufWriter;
 #[grammar = "qdimacs.pest"]
 struct QDIMACSParser;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, strum_macros::Display)]
 pub enum SolverReturnCode {
     Sat,
     Unsat,
