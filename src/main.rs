@@ -39,6 +39,10 @@ fn process_formula_splits(formula: &Formula, depth: u32, filename: &str, working
     for i in 0..splits.len() {
         let mut assumed_f: Formula = Clone::clone(formula);
         for v in &splits[i] {
+            // Flip forall quantifiers to existential if there is a specific assignment.
+            if assumed_f.prefix[i] > 0 {
+                assumed_f.prefix[i] = -assumed_f.prefix[i];
+            }
             assumed_f.matrix.push(vec![*v]);
             assumed_f.nr_of_clauses += 1;
         }
