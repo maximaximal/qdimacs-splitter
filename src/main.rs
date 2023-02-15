@@ -164,16 +164,16 @@ fn produce_statistics_from_run(
 
     let summed_execution_time_seconds: f64 = results.iter().map(|x| x.wall_seconds).sum();
 
-    let mut pos = 0;
+    let mut quanttree_pos = splits_depth - 1;
     let mut solver_results: Vec<SolverResult> = results.to_vec();
     for s in splits.into_iter() {
         let n = s.nr_of_splits();
         solver_results = reduce_result(
-            quant_from_prefix(&formula, splits_depth - 1 - pos),
+            quant_from_prefix(&formula, quanttree_pos),
             n,
             solver_results,
         );
-        pos += n;
+        quanttree_pos -= s.vars.len();
     }
 
     assert!(solver_results.len() == 1);
