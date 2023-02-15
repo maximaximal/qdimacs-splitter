@@ -90,6 +90,13 @@ fn reduce_result(
                     .min_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
                     .unwrap()
             };
+            let max_of = |compare_against: SolverReturnCode| -> f64 {
+                resit()
+                    .filter(|x| x.result == compare_against)
+                    .map(|x| x.wall_seconds)
+                    .max_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
+                    .unwrap()
+            };
             let sum = || -> f64 {
                 resit()
                     .filter(|x| x.result != SolverReturnCode::Timeout)
@@ -106,7 +113,7 @@ fn reduce_result(
                 } else {
                     if resit().all(|r| matches!(r.result, SolverReturnCode::Unsat)) {
                         SolverResult {
-                            wall_seconds: sum(),
+                            wall_seconds: max_of(SolverReturnCode::Unsat),
                             result: SolverReturnCode::Unsat,
                         }
                     } else {
@@ -119,7 +126,7 @@ fn reduce_result(
             } else {
                 if resit().all(|r| matches!(r.result, SolverReturnCode::Sat)) {
                     SolverResult {
-                        wall_seconds: sum(),
+                        wall_seconds: max_of(SolverReturnCode::Sat),
                         result: SolverReturnCode::Sat,
                     }
                 } else {
