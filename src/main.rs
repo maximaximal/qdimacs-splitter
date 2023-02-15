@@ -3,8 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use qdimacs_splitter::{
-    extract_results_from_files, parse_qdimacs, write_qdimacs, Formula, IntegerSplit, SolverResult,
-    SolverReturnCode,
+    extract_result_from_file, extract_results_from_files, parse_qdimacs, write_qdimacs, Formula,
+    IntegerSplit, SolverResult, SolverReturnCode,
 };
 
 /// Tool to explore a QBF formula together with a QBF solver to aid
@@ -60,8 +60,12 @@ fn process_formula_splits(formula: &Formula, depth: u32, filename: &str, working
 struct SolveStatistics {
     pub minimal_execution_time_seconds: f64,
     pub summed_execution_time_seconds: f64,
+    pub non_split_execution_time_seconds: f64,
+    pub speedup_against_non_split: f64,
     pub required_cores: i32,
     pub result: SolverReturnCode,
+    pub naive_split_count: i32,
+    pub run_tasks_compared_to_naive: f64,
 }
 
 enum Quantifier {
@@ -96,12 +100,6 @@ fn reduce_result(
                     .map(|x| x.wall_seconds)
                     .max_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
                     .unwrap()
-            };
-            let sum = || -> f64 {
-                resit()
-                    .filter(|x| x.result != SolverReturnCode::Timeout)
-                    .map(|x| x.wall_seconds)
-                    .sum()
             };
 
             if matches!(quant, Quantifier::Exists) {
@@ -159,13 +157,21 @@ fn produce_statistics_from_run(
     formula: &Formula,
     results: &[SolverResult],
     split_count: u64,
+    og_formula_result: Option<SolverResult>,
 ) -> SolveStatistics {
     let splits: Vec<&IntegerSplit> = formula.splits[0..split_count as usize]
         .into_iter()
         .rev()
         .collect();
 
+    // The splits at this point contain all results in full detail.
+    // Each element in the vector maps to some problem instance that
+    // was split from the original formula.
+
     let splits_depth: usize = splits.iter().map(|x| x.vars.len()).sum();
+
+    let base: i32 = 2;
+    let naive_split_count = base.pow(splits_depth as u32);
 
     let required_cores = results.len() as i32;
 
@@ -180,18 +186,33 @@ fn produce_statistics_from_run(
             n,
             solver_results,
         );
-        quanttree_pos -= s.vars.len();
+        if quanttree_pos > s.vars.len() {
+            quanttree_pos -= s.vars.len();
+        }
     }
 
     assert!(solver_results.len() == 1);
 
     let minimal_execution_time_seconds: f64 = solver_results[0].wall_seconds;
 
+    let mut non_split_execution_time_seconds: f64 = 10000000.0;
+    let mut speedup_against_non_split: f64 = 0.0;
+
+    if let Some(r) = og_formula_result {
+        non_split_execution_time_seconds = r.wall_seconds;
+        speedup_against_non_split =
+            non_split_execution_time_seconds / minimal_execution_time_seconds;
+    }
+
     SolveStatistics {
         minimal_execution_time_seconds,
         summed_execution_time_seconds,
         required_cores,
         result: solver_results[0].result,
+        non_split_execution_time_seconds,
+        speedup_against_non_split,
+        naive_split_count,
+        run_tasks_compared_to_naive: required_cores as f64 / naive_split_count as f64,
     }
 }
 
@@ -224,11 +245,39 @@ fn main() {
             let (formula, results) = extract_results_from_files(&orig_path, &name, args.depth, cwd);
             let (_rounded_depth, split_count) =
                 formula.embedded_splits_round_fitting(args.depth as i64);
-            let statistics = produce_statistics_from_run(&formula, &results, split_count);
-            println!("Statistics: minimal execution path: {} , summed execution time: {} , required cores: {} , result: {}",
+
+            let mut orig_file_result = PathBuf::new();
+            orig_file_result.push(cwd);
+            orig_file_result
+                .push(name + "-" + orig_path.file_name().unwrap().to_str().unwrap() + ".log");
+
+            let og_formula_result: Option<SolverResult> = if orig_file_result.exists() {
+                Some(extract_result_from_file(orig_file_result.as_path()))
+            } else {
+                None
+            };
+
+            let statistics =
+                produce_statistics_from_run(&formula, &results, split_count, og_formula_result);
+            println!("Statistics: minimal execution path: {} , summed execution time: {} , required cores: {} , result: {}, naive split count: {} (compared to naive splits: {})",
                      statistics.minimal_execution_time_seconds,
                      statistics.summed_execution_time_seconds,
-                     statistics.required_cores, statistics.result);
+                     statistics.required_cores,
+                     statistics.result,
+                     statistics.naive_split_count,
+                     statistics.run_tasks_compared_to_naive);
+            if orig_file_result.exists() {
+                println!(
+                    "Original solve time: {} gives speedup of {}",
+                    statistics.non_split_execution_time_seconds,
+                    statistics.speedup_against_non_split
+                );
+            } else {
+                println!(
+                    "No statistics compared to non-split solving, as file {:?} not found.",
+                    orig_file_result
+                )
+            }
         }
     } else {
         println!("!! Require either --split or (--orig and name) !!");

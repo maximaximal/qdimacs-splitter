@@ -43,7 +43,7 @@ pub struct IntegerSplitConstraint {
     pub target: Vec<Vec<i32>>,
 }
 
-fn extract_result_from_file(path: &Path) -> SolverResult {
+pub fn extract_result_from_file(path: &Path) -> SolverResult {
     lazy_static! {
         static ref EXIT_CODE: Regex =
             Regex::new("Command exited with non-zero status (\\d+)").unwrap();
