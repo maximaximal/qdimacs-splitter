@@ -158,6 +158,8 @@ fn produce_statistics_from_run(
         .rev()
         .collect();
 
+    let splits_depth: usize = splits.iter().map(|x| x.vars.len()).sum();
+
     let required_cores = results.len() as i32;
 
     let summed_execution_time_seconds: f64 = results.iter().map(|x| x.wall_seconds).sum();
@@ -166,7 +168,11 @@ fn produce_statistics_from_run(
     let mut solver_results: Vec<SolverResult> = results.to_vec();
     for s in splits.into_iter() {
         let n = s.nr_of_splits();
-        solver_results = reduce_result(quant_from_prefix(&formula, pos), n, solver_results);
+        solver_results = reduce_result(
+            quant_from_prefix(&formula, splits_depth - 1 - pos),
+            n,
+            solver_results,
+        );
         pos += n;
     }
 
