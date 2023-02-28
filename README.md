@@ -18,3 +18,5 @@ that could be gathered by splitting.
 cargo build -r
 ./target/release/qdimacs_splitter
 ```
+
+Generate merged solution as CNF. Basically a CNF that just maps solutions.
