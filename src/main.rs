@@ -146,7 +146,10 @@ fn reduce_result(
 }
 
 fn quant_from_prefix(formula: &Formula, pos: usize) -> Quantifier {
-    if formula.prefix[pos] < 0 {
+    if pos >= formula.prefix.len() {
+        // This case is important for merging DIMACS files.
+        Quantifier::Exists
+    } else if formula.prefix[pos] < 0 {
         Quantifier::Exists
     } else {
         Quantifier::Forall
