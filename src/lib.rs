@@ -152,6 +152,22 @@ impl IntegerSplit {
         self.satisfied_with_num(v, num)
     }
 
+    pub fn efficiency(&self) -> f32 {
+        let base: usize = 2;
+        let total: usize = base.pow(self.vars.len() as u32);
+        let accounted_expansions: usize = self
+            .constraints
+            .iter()
+            .map(|x| match x.kind {
+                IntegerSplitKind::LessThan => x.target[0][0] as usize,
+                IntegerSplitKind::GreaterThan => total - x.target[0][0] as usize,
+                IntegerSplitKind::Equals => x.target.len(),
+            })
+            .sum();
+        let unaccounted_expansions = total - accounted_expansions;
+        unaccounted_expansions as f32 / accounted_expansions as f32
+    }
+
     pub fn nr_of_splits(&self) -> usize {
         // Just generate all numbers from 0 to 2^n and check all of
         // them, afterwards count how many passed.
@@ -357,6 +373,27 @@ fn var_constraint_to_nr_of_bits(v: i32) -> i32 {
     vf.log2().ceil() as i32
 }
 
+fn optimize_prefix_quantifier_block_local(prefix: &Vec<i32>, splits: &mut Vec<IntegerSplit>) {
+    let mut i = 0;
+    while i < prefix.len() - 1 {
+        let remaining = &prefix[i..];
+        let first = remaining[0];
+        let lt = |&x| x < 0;
+        let gt = |&x| x > 0;
+        let find_func = if first < 0 { gt } else { lt };
+        let block_end = remaining
+            .iter()
+            .position(find_func)
+            .unwrap_or(remaining.len())
+            - 1;
+        let block = &remaining[0..=block_end];
+        i = i + block_end + 1;
+        let l: u32 = block.len() as u32;
+
+        // Only take l variables.
+    }
+}
+
 pub fn parse_qdimacs(qdimacs: &str) -> Result<Formula, String> {
     let file = QDIMACSParser::parse(Rule::file, qdimacs)
         .expect("parser error")
@@ -534,6 +571,19 @@ pub fn parse_qdimacs(qdimacs: &str) -> Result<Formula, String> {
                 last_q = q;
             }
         }
+    }
+
+    // Maximize int-split efficiency m^eff (inside of quantifier blocks)
+    let split_eff_cmp = |a: &IntegerSplit, b: &IntegerSplit| -> std::cmp::Ordering {
+        a.efficiency().partial_cmp(&b.efficiency()).unwrap()
+    };
+    if prefix.is_empty() {
+        // No prefix, just maximize m^eff
+        splits.sort_by(split_eff_cmp);
+    } else {
+        // There is some prefix, only maximize locally in prefix
+        // scope.
+        optimize_prefix_quantifier_block_local(&prefix, &mut splits);
     }
 
     Ok(Formula {
