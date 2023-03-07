@@ -41,7 +41,7 @@ fn process_formula_splits(formula: &Formula, depth: u32, filename: &str, working
         for j in 0..splits[i].len() {
             let v = &splits[i][j];
             // Flip forall quantifiers to existential if there is a specific assignment.
-            if assumed_f.prefix[j] > 0 {
+            if !assumed_f.prefix.is_empty() && assumed_f.prefix[j] > 0 {
                 assumed_f.prefix[j] = -assumed_f.prefix[j];
             }
             assumed_f.matrix.push(vec![*v]);

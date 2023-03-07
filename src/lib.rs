@@ -522,15 +522,17 @@ pub fn parse_qdimacs(qdimacs: &str) -> Result<Formula, String> {
     }
 
     // Consistency Check with Quantifier Blocks
-    for s in splits.iter() {
-        let mut last_q = 0;
-        for v in s.vars.iter() {
-            let q_pos = prefix.iter().position(|q| q.abs() == *v).unwrap();
-            let q = prefix[q_pos];
-            if last_q != 0 && sign(last_q) != sign(q) {
-                panic!("One constraint over multiple different quantifier types! Covered variables {} and {}", last_q, q);
+    if !prefix.is_empty() {
+        for s in splits.iter() {
+            let mut last_q = 0;
+            for v in s.vars.iter() {
+                let q_pos = prefix.iter().position(|q| q.abs() == *v).unwrap();
+                let q = prefix[q_pos];
+                if last_q != 0 && sign(last_q) != sign(q) {
+                    panic!("One constraint over multiple different quantifier types! Covered variables {} and {}", last_q, q);
+                }
+                last_q = q;
             }
-            last_q = q;
         }
     }
 
