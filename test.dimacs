@@ -1,4 +1,4 @@
-cs int [ 1 2 ] < 3
+cs int [ 1 ] < 1
 cs int [ 3 4 ] < 3
 p cnf 4 2
 1 2 0
