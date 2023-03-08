@@ -27,13 +27,21 @@ struct Args {
     /// Depth to split into. Also required for merging files to see how many files to parse.
     #[arg(short, long, default_value_t = 4)]
     depth: u32,
+    #[arg(short, long, default_value_t = false)]
+    verbose: bool,
 }
 
 fn get_current_working_dir() -> std::io::Result<PathBuf> {
     std::env::current_dir()
 }
 
-fn process_formula_splits(formula: &Formula, depth: u32, filename: &str, working_directory: &Path) {
+fn process_formula_splits(
+    formula: &Formula,
+    depth: u32,
+    filename: &str,
+    working_directory: &Path,
+    verbose: bool,
+) {
     let splits = formula.produce_splits(depth);
 
     for i in 0..splits.len() {
@@ -52,6 +60,9 @@ fn process_formula_splits(formula: &Formula, depth: u32, filename: &str, working
         let mut out_path = PathBuf::new();
         out_path.push(working_directory);
         out_path.push(out_path_string);
+        if verbose {
+            println!("Split with variables {:?} into {:?}", splits[i], out_path.as_path());
+        }
         write_qdimacs(out_path.as_path(), &assumed_f).unwrap();
     }
 }
@@ -234,8 +245,14 @@ fn main() {
     if args.split.is_some() {
         let filename = args.split.unwrap();
         let formula_str = fs::read_to_string(&filename).unwrap();
-        let formula = parse_qdimacs(&formula_str).unwrap();
-        process_formula_splits(&formula, args.depth, &filename, working_directory.as_path());
+        let formula = parse_qdimacs(&formula_str, args.verbose).unwrap();
+        process_formula_splits(
+            &formula,
+            args.depth,
+            &filename,
+            working_directory.as_path(),
+            args.verbose
+        );
     } else if args.orig.is_some() && args.name.is_some() {
         let cwd = working_directory.as_path();
         let orig = args.orig.unwrap();
