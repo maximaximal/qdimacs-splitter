@@ -20,3 +20,15 @@ cargo build -r
 ```
 
 Generate merged solution as CNF. Basically a CNF that just maps solutions.
+
+## Removing the Int-Split Prefix
+
+In order to remove the int-split header, you can use the following
+`sed` one-liner:
+
+``` bash
+sed -n '/^p cnf.*/,$p' <input-file>
+```
+
+This removes everything until it encounters the problem line, making
+it suitable for all kinds of experiments.
