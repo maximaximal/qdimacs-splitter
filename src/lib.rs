@@ -401,7 +401,7 @@ fn optimize_prefix_quantifier_block_local(
         let l: usize = block.len();
 
         let mut varcount: usize = 0;
-        let split_count = splits
+        let split_count = splits[splits_begin..]
             .iter()
             .take_while(|s| {
                 varcount += s.vars.len();
