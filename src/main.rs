@@ -19,8 +19,8 @@ struct Args {
     #[arg(short, long)]
     orig: Option<String>,
     /// Name of the run to merge.
-    #[arg(short, long)]
-    name: Option<String>,
+    #[arg(short, long, num_args = 1.., value_delimiter = ',')]
+    name: Option<Vec<String>>,
     /// Directory to search files to merge or to write files to. Is the current working directory by default.
     #[arg(short, long)]
     working_directory: Option<String>,
@@ -61,7 +61,11 @@ fn process_formula_splits(
         out_path.push(working_directory);
         out_path.push(out_path_string);
         if verbose {
-            println!("Split with variables {:?} into {:?}", splits[i], out_path.as_path());
+            println!(
+                "Split with variables {:?} into {:?}",
+                splits[i],
+                out_path.as_path()
+            );
         }
         write_qdimacs(out_path.as_path(), &assumed_f).unwrap();
     }
@@ -98,56 +102,72 @@ fn reduce_result(
             let end = (x + 1) * single_layer_width;
 
             let resit = || (begin..end).map(|x| &results[x]);
-            let min_of = |compare_against: SolverReturnCode| -> f64 {
+            let min_of = |compare_against: SolverReturnCode| -> &SolverResult {
                 resit()
                     .filter(|x| x.result == compare_against)
-                    .map(|x| x.wall_seconds)
-                    .min_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
+                    .min_by(|a, b| {
+                        a.wall_seconds
+                            .partial_cmp(&b.wall_seconds)
+                            .expect("Tried to compare a NaN")
+                    })
                     .unwrap()
             };
-            let max_of = |compare_against: SolverReturnCode| -> f64 {
+            let max_of = |compare_against: SolverReturnCode| -> &SolverResult {
                 resit()
                     .filter(|x| x.result == compare_against)
-                    .map(|x| x.wall_seconds)
-                    .max_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
+                    .max_by(|a, b| {
+                        a.wall_seconds
+                            .partial_cmp(&b.wall_seconds)
+                            .expect("Tried to compare a NaN")
+                    })
                     .unwrap()
             };
 
             if matches!(quant, Quantifier::Exists) {
                 if resit().any(|r| matches!(r.result, SolverReturnCode::Sat)) {
+                    let min = min_of(SolverReturnCode::Sat);
                     SolverResult {
-                        wall_seconds: min_of(SolverReturnCode::Sat),
+                        wall_seconds: min.wall_seconds,
                         result: SolverReturnCode::Sat,
+                        name: min.name.to_owned(),
                     }
                 } else {
                     if resit().all(|r| matches!(r.result, SolverReturnCode::Unsat)) {
+                        let max = max_of(SolverReturnCode::Unsat);
                         SolverResult {
-                            wall_seconds: max_of(SolverReturnCode::Unsat),
+                            wall_seconds: max.wall_seconds,
                             result: SolverReturnCode::Unsat,
+                            name: max.name.to_owned(),
                         }
                     } else {
                         SolverResult {
                             wall_seconds: 10000000.0,
                             result: SolverReturnCode::Timeout,
+                            name: "(no solver)".to_string(),
                         }
                     }
                 }
             } else {
                 if resit().all(|r| matches!(r.result, SolverReturnCode::Sat)) {
+                    let max = max_of(SolverReturnCode::Sat);
                     SolverResult {
-                        wall_seconds: max_of(SolverReturnCode::Sat),
+                        wall_seconds: max.wall_seconds,
                         result: SolverReturnCode::Sat,
+                        name: max.name.to_owned(),
                     }
                 } else {
                     if resit().any(|r| matches!(r.result, SolverReturnCode::Unsat)) {
+                        let min = min_of(SolverReturnCode::Unsat);
                         SolverResult {
-                            wall_seconds: min_of(SolverReturnCode::Unsat),
+                            wall_seconds: min.wall_seconds,
                             result: SolverReturnCode::Unsat,
+                            name: min.name.to_owned(),
                         }
                     } else {
                         SolverResult {
                             wall_seconds: 10000000.0,
                             result: SolverReturnCode::Timeout,
+                            name: "(no solver)".to_string(),
                         }
                     }
                 }
@@ -251,7 +271,7 @@ fn main() {
             args.depth,
             &filename,
             working_directory.as_path(),
-            args.verbose
+            args.verbose,
         );
     } else if args.orig.is_some() && args.name.is_some() {
         let cwd = working_directory.as_path();
@@ -268,11 +288,18 @@ fn main() {
 
             let mut orig_file_result = PathBuf::new();
             orig_file_result.push(cwd);
-            orig_file_result
-                .push(name + "-" + orig_path.file_name().unwrap().to_str().unwrap() + ".log");
+            orig_file_result.push(
+                name[0].to_owned()
+                    + "-"
+                    + orig_path.file_name().unwrap().to_str().unwrap()
+                    + ".log",
+            );
 
             let og_formula_result: Option<SolverResult> = if orig_file_result.exists() {
-                Some(extract_result_from_file(orig_file_result.as_path()))
+                Some(extract_result_from_file(
+                    orig_file_result.as_path(),
+                    &name[0],
+                ))
             } else {
                 None
             };

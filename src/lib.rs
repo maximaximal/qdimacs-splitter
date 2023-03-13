@@ -28,6 +28,7 @@ pub enum SolverReturnCode {
 pub struct SolverResult {
     pub wall_seconds: f64,
     pub result: SolverReturnCode,
+    pub name: String
 }
 
 #[derive(Debug, Clone)]
@@ -43,7 +44,7 @@ pub struct IntegerSplitConstraint {
     pub target: Vec<Vec<i32>>,
 }
 
-pub fn extract_result_from_file(path: &Path) -> SolverResult {
+pub fn extract_result_from_file(path: &Path, name: &String) -> SolverResult {
     lazy_static! {
         static ref EXIT_CODE: Regex =
             Regex::new("Command exited with non-zero status (\\d+)").unwrap();
@@ -81,12 +82,13 @@ pub fn extract_result_from_file(path: &Path) -> SolverResult {
     SolverResult {
         wall_seconds,
         result,
+        name: name.to_owned()
     }
 }
 
 pub fn extract_results_from_files(
     orig_file: &Path,
-    name: &str,
+    names: &Vec<String>,
     depth: u32,
     cwd: &Path,
 ) -> (Formula, Vec<SolverResult>) {
@@ -98,17 +100,23 @@ pub fn extract_results_from_files(
         (0..splits.len())
             .map(|n| {
                 // Follows the Simsala convention.
-                let mut filename: String = String::new();
-                filename.push_str(name);
-                filename.push_str("-");
-                filename.push_str(&n.to_string());
-                filename.push_str(":");
-                filename.push_str(orig_file.file_name().unwrap().to_str().unwrap());
-                filename.push_str(".log");
-                let mut p = PathBuf::new();
-                p.push(cwd);
-                p.push(filename);
-                extract_result_from_file(&p.as_path())
+                let min_res = names.iter().map(|name| {
+                    let mut filename: String = String::new();
+                    filename.push_str(&name);
+                    filename.push_str("-");
+                    filename.push_str(&n.to_string());
+                    filename.push_str(":");
+                    filename.push_str(orig_file.file_name().unwrap().to_str().unwrap());
+                    filename.push_str(".log");
+                    let mut p = PathBuf::new();
+                    p.push(cwd);
+                    p.push(filename);
+                    extract_result_from_file(&p.as_path(), name)
+                }).min_by(|l, r| l.wall_seconds.partial_cmp(&r.wall_seconds).unwrap()).unwrap();
+                if names.len() > 1 {
+                    println!("  Best solver for {} is {}", n, min_res.name);
+                }
+                min_res
             })
             .collect(),
     )
