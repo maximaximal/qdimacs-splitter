@@ -211,6 +211,9 @@ fn produce_statistics_from_run(
 
     let summed_execution_time_seconds: f64 = results.iter().map(|x| x.wall_seconds).sum();
 
+    // This is not influenced by the \eta reordering, as the reorder
+    // happens only locally to each quantifier block and the
+    // quantifier block order doesn't change.
     let mut quanttree_pos = splits_depth - 1;
     let mut solver_results: Vec<SolverResult> = results.to_vec();
     for s in splits.into_iter() {
