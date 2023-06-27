@@ -5,7 +5,7 @@ file = { SOI ~
      clause+ ~ NEWLINE? ~
      EOI }
 
-int_split_line = { "cs int " ~ ("[ " ~ (pnum ~ " ")+ ~ "] ")? ~
+int_split_line = { ("cs int" | "s int ") ~ ("[ " ~ (pnum ~ " ")+ ~ "] ")? ~
                cmp ~ " " ~ (pnum
               | ("{ " ~ (onezero ~ " ")+ ~ "}")) ~
               (" ; " ~
